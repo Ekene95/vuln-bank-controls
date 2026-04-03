@@ -1,0 +1,68 @@
+# File: kong/kong.yaml
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: vuln-bank-service
+    # Points to the ClusterIP service in vuln-bank namespace
+    url: http://vuln-bank-svc.vuln-bank.svc.cluster.local:5000
+    connect_timeout: 10000
+    read_timeout: 30000
+    write_timeout: 30000
+
+    routes:
+      # ---- PUBLIC routes (accessible externally) ----
+      - name: login-route
+        paths: ["/login", "/register", "/logout", "/static"]
+        strip_path: false
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 10        # 10 req/min on login — blocks PIN brute-force
+              hour: 100
+              policy: local
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 1  # 1MB max
+
+      - name: api-public-route
+        paths: ["/api/v1/auth", "/api/v1/register"]
+        strip_path: false
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 20
+              policy: local
+
+      - name: app-dashboard-route
+        paths: ["/dashboard", "/transfer", "/transaction",
+                "/loan", "/profile", "/cards", "/bills"]
+        strip_path: false
+
+      # ---- BLOCKED routes (internal only — return 404 to external) ----
+      # /internal/* — simulated internal metadata endpoints
+      # /api/admin/* — admin panel
+      # /api/docs   — Swagger/API docs (information disclosure)
+      - name: blocked-internal-route
+        paths: ["/internal", "/api/admin", "/api/docs"]
+        strip_path: false
+        plugins:
+          - name: request-termination
+            config:
+              status_code: 404
+              message: "Not found"
+
+plugins:
+  # Global: add security response headers + remove server fingerprinting
+  - name: response-transformer
+    config:
+      add:
+        headers:
+          - "X-Content-Type-Options:nosniff"
+          - "X-Frame-Options:DENY"
+          - "Referrer-Policy:no-referrer"
+          - "X-Kong-Upstream:vuln-bank"
+      remove:
+        headers:
+          - "Server"
+          - "X-Powered-By"

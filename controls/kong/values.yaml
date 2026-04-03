@@ -1,0 +1,44 @@
+# File: kong/values.yaml
+image:
+  repository: kong
+  tag: "3.6"
+
+env:
+  database: "off"             # DB-less mode
+  declarative_config: /kong_dbless/kong.yaml
+  proxy_access_log: /dev/stdout
+  proxy_error_log: /dev/stderr
+  admin_access_log: /dev/stdout
+  admin_error_log: /dev/stderr
+  log_level: notice
+  trusted_ips: "0.0.0.0/0"   # Trust all for X-Forwarded-For in lab
+
+# Mount our declarative config
+dblessConfig:
+  configMap: kong-config
+
+# Ingress controller mode — Kong watches KongIngress CRDs
+ingressController:
+  enabled: false
+  installCRDs: true
+
+proxy:
+  type: NodePort
+  http:
+    enabled: true
+    nodePort: 30080
+  tls:
+    enabled: true
+    nodePort: 30443
+
+admin:
+  enabled: true
+  type: ClusterIP    # Admin API internal only — never expose externally
+
+resources:
+  limits:
+    memory: 256Mi
+    cpu: 500m
+  requests:
+    memory: 128Mi
+    cpu: 100m
