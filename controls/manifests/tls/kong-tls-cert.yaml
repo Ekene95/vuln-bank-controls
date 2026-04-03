@@ -15,4 +15,4 @@ spec:
   - localhost
   ipAddresses:
   - 127.0.0.1
-  - 192.168.18.201
+#  - 192.168.x.x # Add your local IP if needed for testing

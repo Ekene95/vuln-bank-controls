@@ -1,5 +1,3 @@
-# File: manifests/vuln-bank/app.yaml
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,8 +19,8 @@ spec:
     spec:
       containers:
       - name: vuln-bank
-        image: localhost/vuln-bank:v1.0 
-        imagePullPolicy: Never    # Use local image
+        image: localhost/vuln-bank:v1.0 #Built locally and loaded into cluster --- IGNORE ---
+        imagePullPolicy: Never    
         ports:
         - containerPort: 5000
         env:
@@ -67,4 +65,4 @@ spec:
   ports:
   - port: 5000
     targetPort: 5000
-  type: ClusterIP    # Internal only — all external traffic via Kong
+  type: ClusterIP  

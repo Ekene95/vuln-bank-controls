@@ -1,5 +1,3 @@
-# File: cert-manager/cluster-issuer.yaml
----
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -7,7 +5,6 @@ metadata:
 spec:
   selfSigned: {}
 ---
-# Root CA Certificate
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -25,7 +22,6 @@ spec:
     kind: ClusterIssuer
     group: cert-manager.io
 ---
-# CA-backed ClusterIssuer (used by Kong and app certs)
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
