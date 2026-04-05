@@ -1,5 +1,4 @@
 _format_version: "3.0"
-_transform: true
 
 services:
   - name: vuln-bank-service
@@ -9,21 +8,16 @@ services:
     write_timeout: 30000
 
     routes:
-      - name: login-route
-        paths: ["/login", "/register", "/logout", "/static"]
+      - name: allow-all-route
+        paths: ["/"]
         strip_path: false
         plugins:
-          - name: rate-limiting
-            config:
-              minute: 10      
-              hour: 100
-              policy: local
           - name: request-size-limiting
             config:
               allowed_payload_size: 1  
 
       - name: api-public-route
-        paths: ["/api/v1/auth", "/api/v1/register"]
+        paths: ["/api/v1/auth", "/api/v1/register", "/api/v3/forgot-password", "/api/v3/reset-password"]
         strip_path: false
         plugins:
           - name: rate-limiting
@@ -31,13 +25,8 @@ services:
               minute: 20
               policy: local
 
-      - name: app-dashboard-route
-        paths: ["/dashboard", "/transfer", "/transaction",
-                "/loan", "/profile", "/cards", "/bills"]
-        strip_path: false
-
       - name: blocked-internal-route
-        paths: ["/internal", "/api/admin", "/api/docs"]
+        paths: ["/internal", "/api/admin", "/api/docs", "/static/openapi.json"]
         strip_path: false
         plugins:
           - name: request-termination
@@ -58,3 +47,5 @@ plugins:
         headers:
           - "Server"
           - "X-Powered-By"
+          - "X-Kong-Version"
+          - "Via"
