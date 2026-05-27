@@ -1,0 +1,52 @@
+# Policy 5: require-readonly-rootfs
+#
+# Requires readOnlyRootFilesystem: true on all containers in the
+# vuln-bank namespace.
+#
+# Why this matters for VulnBank:
+#   VulnBank's unrestricted file upload and path traversal vulnerabilities
+#   can be used for RCE if an attacker uploads a script and finds a way
+#   to execute it. A read-only root filesystem means even if an attacker
+#   achieves code execution, they cannot write tools, backdoors, or
+#   persistence mechanisms to the container filesystem.
+#
+#   Note: writable emptyDir volumes are mounted at /app/static/uploads
+#   and /tmp specifically to allow the app to function while keeping the
+#   root filesystem read-only. This is the correct pattern.
+#
+# Only applied to vuln-bank namespace. PostgreSQL needs write access to
+# its data directory which is on a PVC, not the root filesystem — but
+# requiring readonly rootfs on PostgreSQL requires more careful volume
+# configuration so it is left for a future iteration.
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-readonly-rootfs
+  annotations:
+    policies.kyverno.io/title: Require Read-Only Root Filesystem
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Containers in the vuln-bank namespace must set readOnlyRootFilesystem: true.
+      Writable paths must use explicitly declared emptyDir or PVC volume mounts.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: check-readonly-rootfs
+      match:
+        any:
+        - resources:
+            kinds: ["Pod"]
+            namespaces:
+              - vuln-bank
+      validate:
+        message: >-
+          readOnlyRootFilesystem must be true. Mount writable paths explicitly
+          using emptyDir volumes (e.g. /tmp, /app/static/uploads).
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  readOnlyRootFilesystem: true

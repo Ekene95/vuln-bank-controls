@@ -1,0 +1,69 @@
+# Policy 9: verify-image-signature
+#
+# Requires all container images in the vuln-bank and vuln-bank-db namespaces
+# to carry a valid Cosign cryptographic signature before they are admitted
+# into the cluster.
+#
+# WHY THIS MATTERS FOR VULNBANK:
+# Course 1 established a pipeline that signs every image with Cosign before
+# pushing to GHCR. This policy closes the loop — only signed images are
+# allowed to run. If an attacker pushes an unsigned image directly to the
+# registry (e.g. via compromised GHCR token), this policy blocks it at the
+# cluster door.
+#
+# HOW IT WORKS:
+#   1. Images are signed at build time with Cosign using a key pair
+#   2. The public key is stored as a Kubernetes Secret
+#   3. Kyverno extracts the signature from the image registry
+#   4. Kyverno verifies the signature against the stored public key
+#   5. If verification fails, the pod is rejected (in Enforce mode)
+#
+# Start in Audit mode. Once you have confirmed signed images pass and
+# unsigned images are detected, switch validationFailureAction to Enforce.
+#
+# PREREQUISITES (run before applying this policy):
+#   cosign generate-key-pair
+#   kubectl create secret generic cosign-public-key \
+#     --namespace kyverno \
+#     --from-file=cosign.pub=cosign.pub
+#
+# VERIFICATION:
+#   # Check violations in Audit mode:
+#   kubectl get policyreport -n vuln-bank -o yaml
+#
+#   # Verify a specific image's signature manually:
+#   cosign verify --key cosign.pub ghcr.io/<your-org>/vuln-bank:latest
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signature
+  annotations:
+    policies.kyverno.io/title: Verify Image Signature
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: critical
+    policies.kyverno.io/description: >-
+      Requires all container images in the vuln-bank and vuln-bank-db
+      namespaces to carry a valid Cosign signature. Images that are unsigned
+      or have an invalid signature are rejected.
+spec:
+  validationFailureAction: Audit
+  rules:
+    - name: check-cosign-signature
+      match:
+        any:
+        - resources:
+            kinds: ["Pod"]
+            namespaces:
+              - vuln-bank
+              - vuln-bank-db
+      verifyImages:
+      - imageReferences:
+        - "ghcr.io/*"
+        attestors:
+        - count: 1
+          entries:
+          - keys:
+              secret:
+                name: cosign-public-key
+                namespace: kyverno

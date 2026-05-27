@@ -17,12 +17,25 @@ spec:
         app: vuln-bank
         tier: application
     spec:
+      automountServiceAccountToken: false  # Satisfies: disable-automount-sa-token
+      securityContext:
+        runAsNonRoot: true                 # Satisfies: deny-root-pods
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
       - name: vuln-bank
-        image: localhost/vuln-bank:v1.0 #Built locally and loaded into cluster --- IGNORE ---
-        imagePullPolicy: Never    
+        image: vuln-bank:v1.0
+        imagePullPolicy: Never
         ports:
         - containerPort: 5000
+        securityContext:
+          runAsNonRoot: true               # Satisfies: deny-root-pods
+          runAsUser: 1000
+          readOnlyRootFilesystem: true     # Satisfies: require-readonly-rootfs
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]                  # Drop all Linux capabilities
         env:
         - name: DB_HOST
           value: postgres-svc.vuln-bank-db.svc.cluster.local
@@ -44,15 +57,27 @@ spec:
           limits:
             memory: 256Mi
             cpu: 500m
+            ephemeral-storage: 512Mi      # Satisfies: require-resource-limits
           requests:
             memory: 128Mi
             cpu: 100m
+            ephemeral-storage: 128Mi
+        volumeMounts:
+        - name: uploads                    # Writable uploads dir — required because
+          mountPath: /app/static/uploads   # readOnlyRootFilesystem: true blocks writes
+        - name: tmp                        # Flask/Werkzeug needs /tmp for temp files
+          mountPath: /tmp
         livenessProbe:
           httpGet:
             path: /login
             port: 5000
           initialDelaySeconds: 30
           periodSeconds: 15
+      volumes:
+      - name: uploads
+        emptyDir: {}  # Ephemeral — cleared on pod restart, intentional for lab
+      - name: tmp
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -65,4 +90,4 @@ spec:
   ports:
   - port: 5000
     targetPort: 5000
-  type: ClusterIP  
+  type: ClusterIP

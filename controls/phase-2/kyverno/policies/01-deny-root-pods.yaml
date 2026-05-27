@@ -1,0 +1,53 @@
+# Policy 1: deny-root-pods
+#
+# Prevents any container in the vuln-bank and vuln-bank-db namespaces
+# from running as root (UID 0).
+#
+# Why this matters for VulnBank:
+#   VulnBank has unrestricted file upload and path traversal vulnerabilities.
+#   If an attacker uploads a malicious file and achieves RCE, running as root
+#   means they own the filesystem inside the container. Running as a non-root
+#   user limits what they can do post-compromise.
+#
+# Start in Audit mode. Once you have confirmed your existing pods pass,
+# switch validationFailureAction to Enforce.
+#
+# To check violations in Audit mode:
+#   kubectl get policyreport -n vuln-bank -o yaml
+#   kubectl get policyreport -n vuln-bank-db -o yaml
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: deny-root-pods
+  annotations:
+    policies.kyverno.io/title: Deny Root Pods
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Containers must not run as root (UID 0). Both the pod-level and
+      container-level securityContext must set runAsNonRoot: true.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: check-runAsNonRoot
+      match:
+        any:
+        - resources:
+            kinds: ["Pod"]
+            namespaces:
+              - vuln-bank
+              - vuln-bank-db
+              - kong
+      validate:
+        message: >-
+          Containers must not run as root. Set securityContext.runAsNonRoot: true
+          at both the pod and container level.
+        pattern:
+          spec:
+            securityContext:
+              runAsNonRoot: true
+            containers:
+              - securityContext:
+                  runAsNonRoot: true

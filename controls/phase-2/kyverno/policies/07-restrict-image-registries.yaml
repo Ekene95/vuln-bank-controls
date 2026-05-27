@@ -1,0 +1,54 @@
+# Policy 6: restrict-image-registries
+#
+# WHY THIS EXISTS FOR VULNBANK:
+# In a real financial environment, only images from approved internal
+# registries are permitted. This prevents supply chain attacks where
+# a compromised or typo-squatted public image is pulled and run.
+#
+# For this lab, legitimate images are:
+#   - vuln-bank:v1.0 / localhost/*  (built locally, no registry prefix)
+#   - postgres:15-alpine             (official Docker Hub library image)
+#   - kong:3.6                       (official Kong image)
+#   - quay.io/jetstack/*             (cert-manager images)
+#
+# Any other image source is blocked.
+#
+# VERIFICATION:
+#   # Should be blocked in Enforce mode:
+#   kubectl run test --image=malicious.registry.io/tool -n vuln-bank
+#   # Expected: admission webhook denied the request
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-image-registries
+  annotations:
+    policies.kyverno.io/title: Restrict Image Registries
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Only images from approved registries are permitted. Prevents supply
+      chain attacks and ensures all running software is sourced from
+      known, controlled locations.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: check-image-registry
+      match:
+        any:
+        - resources:
+            kinds: ["Pod"]
+            namespaces:
+              - vuln-bank
+              - vuln-bank-db
+              - kong
+      validate:
+        message: >-
+          Images must come from approved registries only:
+          localhost/, docker.io/library/, quay.io/jetstack/, kong:*, postgres:*.
+          Found: {{ request.object.spec.containers[].image }}
+        pattern:
+          spec:
+            containers:
+              - image: "localhost/*|docker.io/library/*|registry-1.docker.io/library/*|quay.io/jetstack/*|docker.io/kong/*|kong:*|postgres:*|vuln-bank:*"
